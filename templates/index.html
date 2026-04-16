@@ -10,7 +10,7 @@
   <div class="app">
     <header>
       <h1>Drama Script Viewer</h1>
-      <p class="subtitle">드라마 제목 · 시즌 · 에피소드를 입력하면 전체 스크립트를 가져옵니다</p>
+      <p class="subtitle">드라마 제목 · 시즌 · 에피소드를 입력하면 전체 스크립트와 영국식 영어 분석을 제공합니다</p>
     </header>
 
     <section class="search-panel">
@@ -18,37 +18,17 @@
         <div class="fields">
           <div class="field">
             <label for="show">드라마 제목</label>
-            <input
-              id="show"
-              type="text"
-              placeholder="예: Breaking Bad"
-              required
-            />
+            <input id="show" type="text" placeholder="예: Fleabag, Peaky Blinders" required />
           </div>
-
           <div class="field field--narrow">
             <label for="season">시즌</label>
-            <input
-              id="season"
-              type="number"
-              min="1"
-              value="1"
-              placeholder="1"
-              required
-            />
+            <input id="season" type="number" min="1" value="1" placeholder="1" required />
           </div>
-
           <div class="field">
             <label for="episode">에피소드 (번호 또는 제목 키워드)</label>
-            <input
-              id="episode"
-              type="text"
-              placeholder="예: 1  또는  Pilot"
-              required
-            />
+            <input id="episode" type="text" placeholder="예: 1  또는  Episode One" required />
           </div>
         </div>
-
         <button type="submit" id="searchBtn">
           <span id="btnText">스크립트 가져오기</span>
           <span id="btnSpinner" class="spinner hidden"></span>
@@ -56,7 +36,9 @@
       </form>
     </section>
 
+    <!-- ── Result ── -->
     <section id="resultSection" class="result hidden">
+      <!-- Meta header -->
       <div class="result-header">
         <div class="meta">
           <span id="metaShow" class="meta-show"></span>
@@ -64,13 +46,37 @@
           <span id="metaTitle" class="meta-title"></span>
         </div>
         <div class="result-actions">
-          <button id="copyBtn" title="클립보드에 복사">복사</button>
-          <a id="sourceLink" href="#" target="_blank" rel="noopener" title="원본 페이지 열기">원본</a>
+          <button id="copyBtn" title="스크립트 복사">복사</button>
+          <a id="sourceLink" href="#" target="_blank" rel="noopener" title="원본 페이지">원본</a>
         </div>
       </div>
-      <pre id="scriptText" class="script-body"></pre>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab tab--active" data-tab="script">스크립트</button>
+        <button class="tab" data-tab="analysis">영국식 분석</button>
+      </div>
+
+      <!-- Script pane -->
+      <div id="paneScript" class="pane">
+        <pre id="scriptText" class="script-body"></pre>
+      </div>
+
+      <!-- Analysis pane -->
+      <div id="paneAnalysis" class="pane hidden">
+        <div class="analysis-toolbar">
+          <button id="analyzeBtn" class="btn-analyze">
+            <span id="analyzeBtnText">AI 분석 시작</span>
+            <span id="analyzeBtnSpinner" class="spinner hidden"></span>
+          </button>
+          <span id="analysisCount" class="analysis-count hidden"></span>
+        </div>
+        <div id="analysisStatus" class="analysis-status hidden"></div>
+        <div id="analysisItems" class="analysis-items"></div>
+      </div>
     </section>
 
+    <!-- ── Error ── -->
     <section id="errorSection" class="error hidden">
       <p id="errorMsg"></p>
     </section>

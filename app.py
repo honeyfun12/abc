@@ -1,5 +1,6 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context
 from fetchers import springfield, subslikescript
+import analyzer
 
 app = Flask(__name__)
 
@@ -33,7 +34,6 @@ def get_script():
         if fallback["script"]:
             result = fallback
         elif not result["script"]:
-            # Return whichever has an error message
             result["error"] = (
                 result["error"]
                 or fallback["error"]
@@ -41,6 +41,26 @@ def get_script():
             )
 
     return jsonify(result)
+
+
+@app.route("/api/analyze", methods=["POST"])
+def analyze():
+    data = request.get_json(force=True)
+    script = (data.get("script") or "").strip()
+    show = (data.get("show") or "").strip()
+
+    if not script:
+        return jsonify({"error": "스크립트가 없습니다."}), 400
+
+    gen = analyzer.analyze_stream(script, show)
+    return Response(
+        stream_with_context(gen),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 if __name__ == "__main__":
