@@ -328,7 +328,43 @@ button[type="submit"]:disabled { opacity: .55; cursor: not-allowed; }
 /* ── Utility ── */
 .hidden { display: none !important; }
 
+/* ── Mobile ── */
 @media (max-width: 540px) {
-  header h1 { font-size: 1.5rem; }
+  body { padding: .75rem .6rem; }
+  header { margin-bottom: 1.25rem; }
+  header h1 { font-size: 1.4rem; }
+  .subtitle { font-size: .8rem; }
+
+  .search-panel { padding: 1rem; }
+  .fields { gap: .7rem; margin-bottom: 1rem; }
   .field--narrow { flex: 0 0 100%; }
+
+  button[type="submit"] { width: 100%; justify-content: center; padding: .85rem; }
+
+  .result-header { padding: .75rem 1rem; }
+  .meta-show { font-size: .95rem; }
+
+  .tabs .tab { padding: .65rem 1rem; font-size: .85rem; }
+
+  .script-body {
+    font-size: .8rem;
+    line-height: 1.65;
+    padding: 1rem;
+    max-height: 60vh;
+  }
+
+  .analysis-toolbar { padding: .75rem 1rem; }
+  .btn-analyze { width: 100%; justify-content: center; }
+
+  .analysis-items { padding: .75rem 1rem; gap: .7rem; max-height: 60vh; }
+
+  .analysis-card { padding: .75rem .9rem; }
+  .card-term { font-size: .95rem; }
+  .card-original { font-size: .78rem; }
+  .card-explanation { font-size: .85rem; }
+}
+
+/* safe area for notched phones (iPhone X+) */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  body { padding-bottom: calc(.75rem + env(safe-area-inset-bottom)); }
 }
