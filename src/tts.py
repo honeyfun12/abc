@@ -1,11 +1,11 @@
 """Text → ogg/opus voice for Telegram sendVoice.
 
-OpenAI's gpt-4o-mini-tts handles Korean smoothly. Returns a path to a
-temp .ogg file; caller is responsible for cleanup."""
+Uses Microsoft Edge TTS — completely free, no API key, very natural
+Korean voices. Returns a path to a temp .ogg file; caller is responsible
+for cleanup."""
 
 from __future__ import annotations
 import logging
-import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -15,20 +15,17 @@ log = logging.getLogger(__name__)
 
 class TTS:
     def __init__(self, cfg: dict):
-        self.enabled = bool(cfg.get("enabled", False)) and bool(
-            os.environ.get("OPENAI_API_KEY")
-        )
-        self.voice = cfg.get("voice", "nova")
-        self.model = cfg.get("model", "gpt-4o-mini-tts")
+        self.enabled = bool(cfg.get("enabled", False))
+        self.voice = cfg.get("voice", "ko-KR-SunHiNeural")
+        self.rate = cfg.get("rate", "+0%")
+        self.pitch = cfg.get("pitch", "+0Hz")
         self.min_chars = cfg.get("min_chars_for_voice", 80)
-        self._client = None
+
         if self.enabled:
             try:
-                from openai import OpenAI
-
-                self._client = OpenAI()
-            except Exception as e:
-                log.warning("OpenAI TTS init failed, disabling voice: %s", e)
+                import edge_tts  # noqa: F401
+            except ImportError:
+                log.warning("edge_tts not installed; disabling voice.")
                 self.enabled = False
 
     def should_voice(self, text: str, voice_friendly_hint: bool) -> bool:
@@ -38,25 +35,23 @@ class TTS:
             return False
         return len(text.strip()) >= self.min_chars
 
-    def synth(self, text: str) -> Path | None:
+    async def synth(self, text: str) -> Path | None:
         """Synthesize Korean speech to a Telegram-friendly ogg/opus file.
         Returns None on failure (caller falls back to text-only)."""
-        if not self.enabled or not self._client:
+        if not self.enabled:
             return None
+
+        import edge_tts
 
         try:
             mp3_path = Path(tempfile.mkstemp(suffix=".mp3")[1])
-            with self._client.audio.speech.with_streaming_response.create(
-                model=self.model,
+            communicate = edge_tts.Communicate(
+                text=text,
                 voice=self.voice,
-                input=text,
-                instructions=(
-                    "Speak in warm, calm, natural Korean. Slightly slower than "
-                    "normal. Like a thoughtful executive assistant — caring but "
-                    "not saccharine. Pause briefly between sentences."
-                ),
-            ) as response:
-                response.stream_to_file(str(mp3_path))
+                rate=self.rate,
+                pitch=self.pitch,
+            )
+            await communicate.save(str(mp3_path))
 
             ogg_path = mp3_path.with_suffix(".ogg")
             # Telegram voice notes need opus in an ogg container.

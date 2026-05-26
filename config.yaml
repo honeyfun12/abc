@@ -16,42 +16,56 @@ assistant:
     - "혼자 잘하기보다 같이 오래 가기"
     - "남의 인생 말고 내 인생"
 
-  # How aggressively to nudge. Affects message frequency and tone.
-  # gentle | balanced | proactive
+  # How aggressively to nudge. gentle | balanced | proactive
   mode: balanced
+
+  # 기상 시각. 아침 슬롯이 이 시간 기준으로 잡힙니다.
+  wake_time: "10:00"
+  sleep_time: "01:00"  # 다음날 새벽 1시까지 깨어있다고 가정
 
 scheduling:
   # Roughly how many proactive check-ins per day.
   # Actual times are jittered (variable reward — dopamine).
   messages_per_day: 5
+
   # Wake / sleep window (24h). No messages outside this.
+  # 기상 10시 → 새벽 1시까지 활성. 그 외 시간엔 메시지 안 옴.
   active_hours:
-    start: "07:00"
-    end: "23:00"
+    start: "10:00"
+    end: "23:59"
+
   # Built-in slots — each fires once per day inside a random window.
+  # 모든 시간은 10시 기상에 맞춰 재배치됨.
   slots:
     - id: morning_brief
-      window: ["07:30", "09:00"]
+      window: ["10:05", "10:45"]  # 일어나서 정신 차릴 즈음
       kind: morning_brief
-    - id: midmorning_nudge
-      window: ["10:30", "11:30"]
+    - id: late_morning_focus
+      window: ["11:30", "12:30"]  # 본격 집중 시작
       kind: focus_nudge
-    - id: lunch_check
-      window: ["13:00", "14:00"]
+    - id: post_lunch_pulse
+      window: ["14:00", "15:00"]  # 점심 후 dip — 가볍게
       kind: pulse_check
     - id: afternoon_focus
-      window: ["15:30", "17:00"]
+      window: ["16:30", "18:00"]  # 오후 마무리 nudge
       kind: focus_nudge
     - id: evening_reflect
-      window: ["21:00", "22:30"]
+      window: ["22:00", "23:30"]  # 하루 마감
       kind: evening_reflection
 
 tts:
   enabled: true
-  # OpenAI TTS — handles Korean well.
-  # Voices: alloy, echo, fable, onyx, nova, shimmer, coral, sage, ash
-  voice: "nova"
-  model: "gpt-4o-mini-tts"
+  # edge-tts (Microsoft Edge TTS) — 무료, 한국어 자연스러움.
+  # 추천 한국어 음성:
+  #   ko-KR-SunHiNeural   — 따뜻하고 차분한 여성
+  #   ko-KR-InJoonNeural  — 부드러운 남성
+  #   ko-KR-BongJinNeural — 활기찬 남성
+  #   ko-KR-GookMinNeural — 신뢰감 있는 남성
+  #   ko-KR-JiMinNeural   — 밝은 여성
+  #   ko-KR-SeoHyeonNeural — 차분한 여성
+  voice: "ko-KR-SunHiNeural"
+  rate: "-5%"   # 살짝 느리게 — 비서학의 침착함
+  pitch: "+0Hz"
   # Send voice for messages longer than this many chars; shorter ones go text-only.
   min_chars_for_voice: 80
 
@@ -61,17 +75,14 @@ sources:
     lookahead_days: 2
   google_drive:
     enabled: false
-    # Drive folder IDs to scan for recent edits (your journals, notes, plans).
     folder_ids: []
     lookback_days: 7
   local_notes:
-    # A directory you write into freely — Claude reads it for context.
-    # Treat it like a personal Obsidian/notes folder.
+    # 자유롭게 쓰는 노트 폴더. 이전 클로드 채팅 export도 여기 넣어두면 됨.
     enabled: true
     path: "./notes"
 
 model:
-  # Use Opus 4.7 for the proactive briefings (intelligence matters most here).
-  # The Telegram chat reply path uses the same model.
-  id: "claude-opus-4-7"
-  effort: "high"  # low | medium | high | xhigh | max
+  # Claude Code CLI (Max 구독)로 호출됨. 추가 API 과금 없음.
+  # opus | sonnet | haiku — Max 구독 한도 안에서 가장 똑똑한 게 opus.
+  id: "opus"

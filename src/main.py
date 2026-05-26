@@ -43,9 +43,11 @@ async def _amain() -> None:
     log = logging.getLogger("main")
 
     # Required env vars (fail loud, fail early)
-    for var in ("ANTHROPIC_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"):
+    for var in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"):
         if not os.environ.get(var):
             raise SystemExit(f"Missing required env var: {var}. See .env.example.")
+    # Claude auth is handled by the `claude` CLI (Max subscription).
+    # We don't need ANTHROPIC_API_KEY.
 
     memory = Memory("./assistant.db")
     assistant = Assistant(cfg, memory)

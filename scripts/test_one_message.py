@@ -8,11 +8,10 @@ Usage:
 """
 
 from __future__ import annotations
-import os
+import asyncio
 import sys
 from pathlib import Path
 
-# Allow running without `pip install -e .`
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import yaml
@@ -22,10 +21,8 @@ from src.memory import Memory
 from src.assistant import Assistant
 
 
-def main() -> None:
+async def amain() -> None:
     load_dotenv()
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        raise SystemExit("ANTHROPIC_API_KEY not set.")
 
     kind = sys.argv[1] if len(sys.argv) > 1 else "morning_brief"
     valid = {
@@ -43,7 +40,7 @@ def main() -> None:
 
     memory = Memory("./assistant.db")
     assistant = Assistant(cfg, memory)
-    reply = assistant.generate(kind)
+    reply = await assistant.generate(kind)
 
     print("─" * 60)
     print(f"KIND: {kind}")
@@ -53,8 +50,7 @@ def main() -> None:
     print(f"voice_friendly: {reply.voice_friendly}")
     if reply.internal_note:
         print(f"internal_note:  {reply.internal_note}")
-    print(f"usage: {reply.usage}")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(amain())

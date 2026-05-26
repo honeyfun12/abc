@@ -1,14 +1,14 @@
 """Telegram interface.
 
 Two responsibilities:
-1. Receive whatever the user types/voice-notes → log → ask Claude for a reply.
+1. Receive whatever the user types → log → ask Claude for a reply.
 2. Send proactive nudges from the scheduler.
 
-The scheduler calls `send_proactive(kind)`; the bot's polling loop handles
-inbound user messages."""
+Voice messages from the user are noted but not transcribed (avoiding any
+paid transcription service). Text is sufficient for the use case.
+"""
 
 from __future__ import annotations
-import asyncio
 import logging
 import os
 from pathlib import Path
@@ -100,44 +100,22 @@ class Bot:
             return
         text = update.message.text
         self.memory.log_message(direction="in", text=text)
-        await self._reply_to_user(text)
+        await self._reply_to_user()
 
     async def _on_voice(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        """Voice notes are logged but not transcribed (no paid service).
+        User should type for full conversational context."""
         if update.effective_chat.id != self.chat_id:
             return
-        # Transcribe via OpenAI Whisper if available, otherwise just log presence
-        transcript = await self._transcribe_voice(update)
-        if not transcript:
-            self.memory.log_message(direction="in", text="(음성 메시지 — 전사 실패)")
-            return
-        self.memory.log_message(direction="in", text=f"(음성) {transcript}")
-        await self._reply_to_user(transcript)
+        self.memory.log_message(direction="in", text="(음성 메시지 수신 — 텍스트로 한 번 더 보내주면 답변 가능)")
+        await self.app.bot.send_message(
+            chat_id=self.chat_id,
+            text="음성 메시지는 기록만 해뒀어. 답이 필요하면 텍스트로 한 번 더 줘.",
+        )
 
-    async def _transcribe_voice(self, update: Update) -> str | None:
-        if not os.environ.get("OPENAI_API_KEY"):
-            return None
-        try:
-            file = await update.message.voice.get_file()
-            tmp = Path("/tmp") / f"tg_{update.message.voice.file_unique_id}.ogg"
-            await file.download_to_drive(custom_path=str(tmp))
-
-            from openai import OpenAI
-
-            client = OpenAI()
-            with open(tmp, "rb") as f:
-                result = client.audio.transcriptions.create(
-                    model="whisper-1", file=f, language="ko"
-                )
-            tmp.unlink(missing_ok=True)
-            return result.text
-        except Exception as e:
-            log.warning("voice transcription failed: %s", e)
-            return None
-
-    async def _reply_to_user(self, user_text: str) -> None:
+    async def _reply_to_user(self) -> None:
         await self.app.bot.send_chat_action(self.chat_id, ChatAction.TYPING)
-        # Run blocking Anthropic call in a thread.
-        reply = await asyncio.to_thread(self.assistant.generate, "reply")
+        reply = await self.assistant.generate("reply")
         await self._dispatch(reply, kind="reply")
 
     # ---- outbound ----
@@ -146,7 +124,7 @@ class Bot:
         await self._send_proactive(kind)
 
     async def _send_proactive(self, kind: str) -> None:
-        reply = await asyncio.to_thread(self.assistant.generate, kind)
+        reply = await self.assistant.generate(kind)
         await self._dispatch(reply, kind=kind)
 
     async def _dispatch(self, reply, *, kind: str) -> None:
@@ -155,7 +133,7 @@ class Bot:
 
         if self.tts.should_voice(text, reply.voice_friendly):
             await self.app.bot.send_chat_action(self.chat_id, ChatAction.RECORD_VOICE)
-            voice_path = await asyncio.to_thread(self.tts.synth, text)
+            voice_path = await self.tts.synth(text)
 
         await self.app.bot.send_message(chat_id=self.chat_id, text=text)
 

@@ -1,8 +1,13 @@
-"""The Claude-powered assistant brain. Builds context, calls Opus 4.7
-with adaptive thinking + prompt caching, parses the JSON response.
+"""The Claude-powered assistant brain.
 
-The system prompt (stable_system_prompt) is cached so we only pay full
-price the first time per 5-minute window — see shared/prompt-caching.md."""
+Calls Claude via the local `claude` CLI (Claude Code) using the
+claude-agent-sdk. This goes against your Max subscription quota — NO
+additional API charges.
+
+Prerequisites:
+  - `claude` CLI installed (https://claude.ai/code)
+  - `claude /login` completed with your Max account
+"""
 
 from __future__ import annotations
 import json
@@ -13,7 +18,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-import anthropic
+from claude_agent_sdk import (
+    query,
+    ClaudeAgentOptions,
+    AssistantMessage,
+    TextBlock,
+)
 
 from .prompts import stable_system_prompt, render_user_turn
 from .memory import Memory
@@ -28,33 +38,26 @@ class AssistantReply:
     voice_friendly: bool
     internal_note: str | None
     raw: str
-    usage: dict
 
 
 class Assistant:
     def __init__(self, cfg: dict[str, Any], memory: Memory):
         self.cfg = cfg
         self.memory = memory
-        self.client = anthropic.Anthropic()  # uses ANTHROPIC_API_KEY
         self.model_id = cfg["model"]["id"]
-        self.effort = cfg["model"]["effort"]
         self.tz = os.environ.get("TIMEZONE", "Asia/Seoul")
 
     # ---------- context assembly ----------
 
     def _gather_context(self) -> list[str]:
-        """Pull from every enabled source. Order from most-stable to most-
-        volatile so we can cache more later if it pays off."""
         blocks: list[str] = []
         sources = self.cfg["sources"]
 
-        # 1) Local notes (always cheap, no auth)
         if sources["local_notes"]["enabled"]:
             block = local_notes.fetch_notes_block(sources["local_notes"]["path"])
             if block:
                 blocks.append(block)
 
-        # 2) Google Calendar
         if sources["google_calendar"]["enabled"]:
             try:
                 from .sources.google_calendar import fetch_calendar_block
@@ -68,7 +71,6 @@ class Assistant:
             except Exception as e:
                 log.warning("calendar fetch failed: %s", e)
 
-        # 3) Google Drive
         if sources["google_drive"]["enabled"]:
             try:
                 from .sources.google_drive import fetch_drive_block
@@ -82,7 +84,6 @@ class Assistant:
             except Exception as e:
                 log.warning("drive fetch failed: %s", e)
 
-        # 4) Recent telegram dialogue (last ~12 turns)
         recent = self.memory.recent_messages(limit=12)
         if recent:
             lines = ["## 최근 텔레그램 대화"]
@@ -93,7 +94,6 @@ class Assistant:
                 lines.append(f"- [{stamp}] {who}: {text}")
             blocks.append("\n".join(lines))
 
-        # 5) Open todos
         todos = self.memory.open_todos()
         if todos:
             lines = ["## 열린 할 일"]
@@ -101,7 +101,6 @@ class Assistant:
                 lines.append(f"- {t['text']}")
             blocks.append("\n".join(lines))
 
-        # 6) Internal notes the model left for itself
         notes = self.memory.unconsumed_notes()
         if notes:
             blocks.append("## 비서 메모 (지난 호출에서 남긴 것)\n" + "\n".join(notes))
@@ -110,55 +109,50 @@ class Assistant:
 
     # ---------- model call ----------
 
-    def generate(self, kind: str) -> AssistantReply:
+    async def generate(self, kind: str) -> AssistantReply:
         now = datetime.now(timezone.utc)
         ctx_blocks = self._gather_context()
         user_turn = render_user_turn(
             kind=kind, now=now, tz=self.tz, context_blocks=ctx_blocks
         )
 
-        # The stable system prompt is cached. cache_control on its last
-        # block ⇒ the whole system + tools prefix gets cache-read on
-        # subsequent calls within the TTL.
-        system_blocks = [
-            {
-                "type": "text",
-                "text": stable_system_prompt(self.cfg),
-                "cache_control": {"type": "ephemeral"},
-            }
-        ]
-
-        resp = self.client.messages.create(
+        options = ClaudeAgentOptions(
+            system_prompt=stable_system_prompt(self.cfg),
             model=self.model_id,
-            max_tokens=2000,
-            system=system_blocks,
-            thinking={"type": "adaptive"},
-            output_config={"effort": self.effort},
-            messages=[{"role": "user", "content": user_turn}],
+            max_turns=1,
+            allowed_tools=[],          # 도구 호출 X — 텍스트만
+            setting_sources=[],        # 사용자 CLAUDE.md 등 외부 설정 미로드
+            permission_mode="default",
         )
 
-        # Extract final text block
-        text = ""
-        for block in resp.content:
-            if block.type == "text":
-                text = block.text
-                break
+        cli_path = os.environ.get("CLAUDE_CLI_PATH")
+        if cli_path:
+            options.path_to_claude_code_executable = cli_path  # 일부 버전에서 지원
 
+        text_parts: list[str] = []
+        try:
+            async for msg in query(prompt=user_turn, options=options):
+                if isinstance(msg, AssistantMessage):
+                    for block in msg.content:
+                        if isinstance(block, TextBlock):
+                            text_parts.append(block.text)
+        except Exception as e:
+            log.exception("claude-agent-sdk query failed: %s", e)
+            return AssistantReply(
+                message="(비서가 잠깐 막혔어요. 잠시 후 다시 시도해주세요.)",
+                voice_friendly=False,
+                internal_note=None,
+                raw=str(e),
+            )
+
+        text = "\n".join(text_parts).strip()
         parsed = _parse_json_envelope(text)
-        usage = {
-            "input_tokens": resp.usage.input_tokens,
-            "output_tokens": resp.usage.output_tokens,
-            "cache_read": getattr(resp.usage, "cache_read_input_tokens", 0),
-            "cache_create": getattr(resp.usage, "cache_creation_input_tokens", 0),
-        }
-        log.info("usage: %s", usage)
 
         reply = AssistantReply(
             message=parsed.get("message", text).strip(),
             voice_friendly=bool(parsed.get("voice_friendly", True)),
             internal_note=parsed.get("internal_note"),
             raw=text,
-            usage=usage,
         )
 
         if reply.internal_note:
