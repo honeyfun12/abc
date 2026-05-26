@@ -1,0 +1,77 @@
+# Personal Assistant Secretary — runtime config
+# Edit freely; all values reload on restart.
+
+assistant:
+  user_name: "세훈"
+  # Long-term goals — these get cached in the system prompt.
+  # Edit anytime; the model will reorient around them.
+  long_term_goals:
+    - "직업적으로 성장하고 안정된 커리어를 만든다"
+    - "건강한 몸과 마음을 유지한다 (운동, 수면, 식사)"
+    - "의미 있는 관계 — 가족·친구·연인 — 을 깊이 가꾼다"
+    - "배움을 멈추지 않는다 (책, 새로운 기술, 새로운 관점)"
+    - "오늘 하루를 살 만하다고 느낀다"
+  values:
+    - "완벽보다 작은 진전"
+    - "혼자 잘하기보다 같이 오래 가기"
+    - "남의 인생 말고 내 인생"
+
+  # How aggressively to nudge. Affects message frequency and tone.
+  # gentle | balanced | proactive
+  mode: balanced
+
+scheduling:
+  # Roughly how many proactive check-ins per day.
+  # Actual times are jittered (variable reward — dopamine).
+  messages_per_day: 5
+  # Wake / sleep window (24h). No messages outside this.
+  active_hours:
+    start: "07:00"
+    end: "23:00"
+  # Built-in slots — each fires once per day inside a random window.
+  slots:
+    - id: morning_brief
+      window: ["07:30", "09:00"]
+      kind: morning_brief
+    - id: midmorning_nudge
+      window: ["10:30", "11:30"]
+      kind: focus_nudge
+    - id: lunch_check
+      window: ["13:00", "14:00"]
+      kind: pulse_check
+    - id: afternoon_focus
+      window: ["15:30", "17:00"]
+      kind: focus_nudge
+    - id: evening_reflect
+      window: ["21:00", "22:30"]
+      kind: evening_reflection
+
+tts:
+  enabled: true
+  # OpenAI TTS — handles Korean well.
+  # Voices: alloy, echo, fable, onyx, nova, shimmer, coral, sage, ash
+  voice: "nova"
+  model: "gpt-4o-mini-tts"
+  # Send voice for messages longer than this many chars; shorter ones go text-only.
+  min_chars_for_voice: 80
+
+sources:
+  google_calendar:
+    enabled: false  # set true after running auth flow
+    lookahead_days: 2
+  google_drive:
+    enabled: false
+    # Drive folder IDs to scan for recent edits (your journals, notes, plans).
+    folder_ids: []
+    lookback_days: 7
+  local_notes:
+    # A directory you write into freely — Claude reads it for context.
+    # Treat it like a personal Obsidian/notes folder.
+    enabled: true
+    path: "./notes"
+
+model:
+  # Use Opus 4.7 for the proactive briefings (intelligence matters most here).
+  # The Telegram chat reply path uses the same model.
+  id: "claude-opus-4-7"
+  effort: "high"  # low | medium | high | xhigh | max

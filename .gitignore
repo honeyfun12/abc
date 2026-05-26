@@ -1,0 +1,11 @@
+.env
+.google_token.json
+client_secret.json
+*.db
+*.sqlite
+__pycache__/
+*.pyc
+.venv/
+venv/
+notes/
+data/
